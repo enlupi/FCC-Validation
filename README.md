@@ -1,8 +1,7 @@
 # CERN Summer School 2024: IDEA Drift Chamber Validation
 
 
-# Day 1
-
+# Introduction
 DD4hep stands for Detector Description for High Energy Physics (HEP). It exploits the ROOT machinery (TGeo clases, TMaterial, etc) that reproduce the same features as Geant4 (+CLHEP). It adds some extra features with respect to Geant4 (such as the data extension mechanism) and at the same time allows to simplify part of the code needed to run a simulation. For example, by using `ddsim` ones does not have to create from scratch a Geant4 standalone application; one can see `ddsim` as an skeleton of a Geant4 standalone application.
 
 As a starting point for learning, please check the fullsim of FCC detector concepts [page](https://fcc-ee-detector-full-sim.docs.cern.ch), that contains
@@ -25,7 +24,7 @@ cmake --build build -j 4 --target install
 k4_local_repo
 ```
 
-My recommendation is that for each test or study, you copy the main `XML` file that contains the description of the drift chamber, taken from [k4geo repository](https://github.com/key4hep/k4geo/blob/main/lcgeoTests/compact/DCH_standalone_o1_v02.xml). Remember to:
+For each test or study, it is best to copy the main `XML` file that contains the description of the drift chamber, taken from [k4geo repository](https://github.com/key4hep/k4geo/blob/main/lcgeoTests/compact/DCH_standalone_o1_v02.xml). Remember to:
 * remove the `debugGeometry` tag
 * use the proper path to the materials and elements `XML` files
 
@@ -82,15 +81,14 @@ Links to official documentation (*mainly in case of problems*):
 * EDM4hep (github): https://github.com/key4hep/EDM4hep
 * ROOT (doxigen): https://root.cern/doc/master/
 
-## Tasks for Enrico
+## Current Tasks
 
 1. Run full simulation of the stand alone drift chamber. Study the output file, for example by plotting the energy distribution, number of cells fired per event, the energy distribution by layers, and in principle any other thing you consider useful 
 2. Study the effect of including/removing the wires on the previous plots. You can include/exclude the wires by changing the main XML.
 3. Compare the energy deposited with the [analytical formula](https://en.wikipedia.org/wiki/Bethe_formula#The_mean_excitation_energy), given the mean excitation energy provided in the XML (48 eV)
 
-```
 
-## General good practices
+### General good practices
 
 1. Keep track of the work, for example by a dedicated git(hub) project. This would include the inputs files that are used, a README that explains how to reproduce the outputfiles and a script to generate the plots of interest
 2. Quantify (with numbers) the subject of study
