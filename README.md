@@ -88,9 +88,3 @@ Links to official documentation (*mainly in case of problems*):
 3. Compare the energy deposited with the [analytical formula](https://en.wikipedia.org/wiki/Bethe_formula#The_mean_excitation_energy), given the mean excitation energy provided in the XML (48 eV)
 
 
-### General good practices
-
-1. Keep track of the work, for example by a dedicated git(hub) project. This would include the inputs files that are used, a README that explains how to reproduce the outputfiles and a script to generate the plots of interest
-2. Quantify (with numbers) the subject of study
-3. My door/email will be always open in case of need, please do not hesistate to ask if you need help or find a showstopper
-4. Learn more about Geant4, by following the begining course available [here](https://indico.cern.ch/event/1370034/timetable/#20240415)
