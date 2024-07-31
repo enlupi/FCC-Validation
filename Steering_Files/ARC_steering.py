@@ -63,4 +63,4 @@ SIM.gun.thetaMax = None
 ## Minimal polar angle for random distribution
 SIM.gun.thetaMin = None
 
-SIM.outputFile = "Data/Simulation/ARC/Stable/arc_proton_20GeV_costheta.root"
+SIM.outputFile = "ARC_sim.root"
