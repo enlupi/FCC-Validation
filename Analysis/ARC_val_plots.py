@@ -14,6 +14,13 @@ import DDRec
 
 
 
+def find_directory(directory_name, search_path):
+    for root, dirs, files in os.walk(search_path):
+        if directory_name in dirs:
+            return os.path.join(root, directory_name)
+    return None
+
+
 def format_func(value, tick_number):
   N = int(np.round(value / np.pi * 6))
   if N == 0:
@@ -54,8 +61,9 @@ def count_photons(inputFile):
   podio_reader = root_io.Reader(inputFile)
 
   # get detector description for cell id decoding
+  k4geo_path = find_directory("k4geo", "/")
   theDetector = Detector.getInstance()
-  theDetector.fromXML("../Detector_Description/ARC/ARC_standalone_o1_v01.xml")
+  theDetector.fromXML(k4geo_path+"/test/compact/ARC_standalone_o1_v01.xml")
   idposConv = DDRec.CellIDPositionConverter(theDetector)
   n_evts = len(podio_reader.get("events"))
                   
