@@ -2,6 +2,9 @@
 
 
 # Introduction
+
+The IDEA (Innovative Detector for Electron-positron Accelerator) detector concept is based on an ultra-light gaseous drift chamber and a dual-readout calorimeter. 
+
 DD4hep stands for Detector Description for High Energy Physics (HEP). It exploits the ROOT machinery (TGeo clases, TMaterial, etc) that reproduce the same features as Geant4 (+CLHEP). It adds some extra features with respect to Geant4 (such as the data extension mechanism) and at the same time allows to simplify part of the code needed to run a simulation. For example, by using `ddsim` ones does not have to create from scratch a Geant4 standalone application; one can see `ddsim` as an skeleton of a Geant4 standalone application.
 
 As a starting point for learning, please check the fullsim of FCC detector concepts [page](https://fcc-ee-detector-full-sim.docs.cern.ch), that contains
