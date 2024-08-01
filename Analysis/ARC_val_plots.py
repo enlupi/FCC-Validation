@@ -124,7 +124,7 @@ def plot_ph_count(n_ph, first_hit, ph_count, args):
   ax1.xaxis.set_major_formatter(FuncFormatter(format_func))
   
   if not args.no_save:
-    fig1.savefig(output_start+'_phCount_theta.png', bbox_inches='tight')
+    fig1.savefig(output_start+'_phCount_theta.svg', bbox_inches='tight')
   if args.no_show:
     plt.close(fig1)
 
@@ -157,7 +157,7 @@ def plot_ph_count(n_ph, first_hit, ph_count, args):
   ax2.yaxis.set_major_formatter(FuncFormatter(format_func))
 
   if not args.no_save:
-    fig2.savefig(output_start+'_phCount_thetaphi.png', bbox_inches='tight')
+    fig2.savefig(output_start+'_phCount_thetaphi.svg', bbox_inches='tight')
   if args.no_show:
     plt.close(fig2)
 
@@ -173,7 +173,7 @@ def plot_ph_count(n_ph, first_hit, ph_count, args):
   ax3.set_yscale('log')
   
   if not args.no_save:
-    fig3.savefig(output_start+'_phCount_Nph.png', bbox_inches='tight')
+    fig3.savefig(output_start+'_phCount_Nph.svg', bbox_inches='tight')
   if args.no_show:
     plt.close(fig3)
 
@@ -194,7 +194,7 @@ def plot_ph_count(n_ph, first_hit, ph_count, args):
   ax4.xaxis.set_major_formatter(FuncFormatter(format_func))
   
   if not args.no_save:
-    fig4.savefig(output_start+'_phCount_theta_1stHit.png', bbox_inches='tight')
+    fig4.savefig(output_start+'_phCount_theta_1stHit.svg', bbox_inches='tight')
   if args.no_show:
     plt.close(fig4)
 
@@ -228,7 +228,7 @@ def plot_ph_count(n_ph, first_hit, ph_count, args):
   ax5.yaxis.set_major_formatter(FuncFormatter(format_func))
 
   if not args.no_save:
-    fig5.savefig(output_start+'_phCount_thetaphi_1stHit.png', bbox_inches='tight')
+    fig5.savefig(output_start+'_phCount_thetaphi_1stHit.svg', bbox_inches='tight')
   if args.no_show:
     plt.close(fig5)
 
