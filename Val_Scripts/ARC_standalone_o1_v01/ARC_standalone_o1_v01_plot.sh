@@ -2,7 +2,7 @@
 source /cvmfs/sw.hsf.org/key4hep/setup.sh
 
 python FCC_Validation/Analysis/ARC_val_plots.py -f ARC_sim.root --no_show \
-       -o key4hep-reco-validation/www/ARC_standalone_o1_v01/
+       -o key4hep-reco-validation/www/ARC_standalone_o1_v01/validation
 
 
 # upload them on website
