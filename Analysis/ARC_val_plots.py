@@ -61,7 +61,7 @@ def count_photons(inputFile):
   podio_reader = root_io.Reader(inputFile)
 
   # get detector description for cell id decoding
-  k4geo_path = find_directory("k4geo", "/")
+  k4geo_path = find_directory("k4geo", "/validation")
   theDetector = Detector.getInstance()
   theDetector.fromXML(k4geo_path+"/test/compact/ARC_standalone_o1_v01.xml")
   idposConv = DDRec.CellIDPositionConverter(theDetector)
