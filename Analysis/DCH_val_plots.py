@@ -46,7 +46,7 @@ def plot_results(results, filename, args):
     ax1.set_title('Energy per Hit')
     
     if not args.no_save:
-      fig1.savefig(output_start+'_E_per_hit.png', bbox_inches='tight')
+      fig1.savefig(output_start+'_E_per_hit.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig1)
       
@@ -72,7 +72,7 @@ def plot_results(results, filename, args):
     ax2.set_title('Energy per Layer')
     
     if not args.no_save:
-      fig2.savefig(output_start+'_E_per_layer.png', bbox_inches='tight')
+      fig2.savefig(output_start+'_E_per_layer.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig2)
       
@@ -94,7 +94,7 @@ def plot_results(results, filename, args):
     ax3.set_title('Total Energy per Event')
     
     if not args.no_save:
-      fig3.savefig(output_start+'_E_per_evt.png', bbox_inches='tight')
+      fig3.savefig(output_start+'_E_per_evt.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig3)
       
@@ -118,7 +118,7 @@ def plot_results(results, filename, args):
     ax4.set_title('Cells Fired per Layer')
     
     if not args.no_save:
-      fig4.savefig(output_start+'_cell_per_layer.png', bbox_inches='tight')
+      fig4.savefig(output_start+'_cell_per_layer.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig4)
       
@@ -138,7 +138,7 @@ def plot_results(results, filename, args):
     ax5.set_title('Cells Fired per Event')
     
     if not args.no_save:
-      fig5.savefig(output_start+'_cell_per_evt.png', bbox_inches='tight')
+      fig5.savefig(output_start+'_cell_per_evt.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig5)
   
@@ -158,7 +158,7 @@ def plot_results(results, filename, args):
     ax6.set_title('Hits per Event')
     
     if not args.no_save:
-      fig6.savefig(output_start+'_hits_per_evt.png', bbox_inches='tight')
+      fig6.savefig(output_start+'_hits_per_evt.svg', bbox_inches='tight')
     if args.no_show:
       plt.close(fig6)
       
