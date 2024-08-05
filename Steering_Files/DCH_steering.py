@@ -17,7 +17,7 @@ SIM.macroFile = ""
 ## number of events to simutlate, used in batch mode
 SIM.numberOfEvents = 1000
 ## Outputfile from the simulation: .slcio, edm4hep.root and .root output files are supported
-SIM.outputFile = "dch_p20GeV_costheta.root"
+SIM.outputFile = "DCH_sim.root"
 ## Physics list to use in simulation
 SIM.physicsList = None
 ## Verbosity use integers from 1(most) to 7(least) verbose
