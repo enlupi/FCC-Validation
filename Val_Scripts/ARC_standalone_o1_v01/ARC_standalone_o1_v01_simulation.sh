@@ -6,5 +6,5 @@ echo "Sourcing executed successfully"
 echo "Starting simulation..."
 ddsim --steeringFile FCC_Validation/Steering_Files/ARC_steering.py \
       --compactFile k4geo/test/compact/ARC_standalone_o1_v01.xml \
-      -N $EVENTS_PER_FILE
+      -N $NUMBER_OF_EVENTS
 echo "Simulation ended successfully"
