@@ -1,0 +1,544 @@
+variables:
+    VALIDATION_JOB_TYPE:
+        value: "run_script"
+        description: "Which type of validation job to run: simreco, datamodels or run_script"
+    VERSIONS:
+        value: CLIC_o3_v15
+        description: Which geometry to use
+    REFERENCE_SAMPLE:
+        value: "https://key4hep-validation-data.web.cern.ch/Reference-samples/CLIC_o3_v15/2023-06-22"
+        description: Where to find the reference sample
+    TAG:
+        value: "latest"
+        description: Which tag to use for the release
+    INPUT_DATA_SAMPLE:
+        value: "https://key4hep-validation-data.web.cern.ch/Gen/eos-experiment-clicdp-grid-ilc-prod-clic-100gev-Z_uds-gen-00011619-000"
+        description: Which web page where to find the data used as an input for simulation
+    NUMBER_OF_EVENTS:
+        value: "25"
+        description: How many events to run on
+    WORKAREA:
+        value: "/validation"
+        description: Where to run the validation on the runner
+    PLOTAREA:
+        value: "plot_www"
+        description: Where to store the plots and information for the validation website
+    EVENTS_PER_FILE:
+        value: "25"
+        description: How many events each input files has
+    MAKE_REFERENCE_SAMPLE:
+        value: "no"
+        description: Whether to only make a reference sample for later use
+    STEERING_FILE_SIM:
+        value: "https://github.com/iLCSoft/CLICPerformance/blob/master/clicConfig/clic_steer.py"
+        description: Full path to the steering file for simulation (github or gitlab repo)
+    STEERING_FILE_REC:
+        value: "https://github.com/iLCSoft/CLICPerformance/blob/master/clicConfig/clicReconstruction.xml"
+        description: Full path to the steering file for reconstruction (github or gitlab repo)
+    OS:
+        value: "almalinux9"
+        description: Which operating system to use for sourcing the nightlies
+    # Needed by the deploy step
+    CI_OUTPUT_DIR:
+        value: "$WORKAREA/$PLOTAREA"
+        description: Path to the web page files
+
+# The validation workflow expects several things:
+# - a GEOMETRY folder that can be found in k4geo. This folder contains a GEOMETRY.xml file
+#   (for example CLIC_o3_v15 contains CLIC_o3_v15.xml)
+# - a steering file for simulation. The full path to the file in github or gitlab is expected
+#   (for example https://github.com/iLCSoft/CLICPerformance/blob/master/clicConfig/clic_steer.py)
+# - a steering file for reconstruction. The full path to the file in github or gitlab is expected
+#   (for example )
+stages:
+    - setup
+    - generate-edm-sample
+    - datamodels
+    - simulate
+    - reconstruct
+    - make-plot-files
+    - metadata
+    - plot
+    - execute_script
+    - deploy
+    - cleanup
+
+.template-job: &template-job
+    image: gitlab-registry.cern.ch/key4hep/k4-deploy/alma9-build
+    tags:
+        - validation
+
+.template-simreco-job: &template-simreco-job
+    <<: *template-job
+    rules:
+      - if: '$VALIDATION_JOB_TYPE == "simreco"'
+        changes:
+            - never
+
+.template-datamodels-job: &template-datamodels-job
+    <<: *template-job
+    rules:
+      - if: '$VALIDATION_JOB_TYPE == "datamodels"'
+        changes:
+            - never
+
+.template-run_script-job: &template-run_script-job
+    <<: *template-job
+    rules:
+      - if: '$VALIDATION_JOB_TYPE == "run_script"'
+        changes:
+            - never
+
+.template-deploy-job: &template-deploy-job
+    image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
+    tags:
+        - validation
+    
+prepare-simreco:
+    <<: *template-simreco-job
+    stage: setup
+    script: |
+        mkdir -p $WORKAREA
+        cd $WORKAREA
+
+        # Needed when running without git
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        # rm trackvalidation CLICPerformance key4hep-reco-validation -rf
+        git clone https://github.com/jmcarcell/trackvalidation --depth 1
+        git clone https://github.com/key4hep/key4hep-reco-validation --depth 1
+
+        # Copy the geometry locally, avoid possible issues with equal signs in the path
+        path=$(find ${K4GEO} -name ${GEOMETRY} -type d)
+        cp $path . -r
+
+        if echo "$STEERING_FILE_SIM" | grep -q "github"; then
+            repository=$(echo "$STEERING_FILE_SIM" | sed -n 's|https://github.com/\([^/]\+/[^/]\+\).*|\1|p')
+            echo "Steering file found in the repository: $repository"
+            git clone "https://github.com/$repository.git" --depth 1
+            file_path=$(basename $repository)/$(echo "$STEERING_FILE_SIM" | sed "s|https://github.com/$repository/blob/master/||")
+        elif echo "$STEERING_FILE_SIM" | grep -q "gitlab"; then
+            repository=$(echo "$STEERING_FILE_SIM" | sed -n 's|https://gitlab.com/\([^/]\+/[^/]\+\).*|\1|p')
+            echo "Steering file found in the repository: $repository"
+            git clone "https://gitlab.com/$repository.git" --depth 1
+            file_path=$(basename $repository)/$(echo "$STEERING_FILE_SIM" | sed "s|https://gitlab.com/$repository/blob/master/||")
+        else
+            echo "Unknown repository type"
+        fi
+
+        ln -s $file_path steering_file_sim.py
+
+        if echo "$STEERING_FILE_REC" | grep -q "github"; then
+            repository=$(echo "$STEERING_FILE_REC" | sed -n 's|https://github.com/\([^/]\+/[^/]\+\).*|\1|p')
+            echo "Steering file found in the repository: $repository"
+            set +e
+            git clone "https://github.com/$repository.git" --depth 1
+            set -e
+            file_path=$(basename $repository)/$(echo "$STEERING_FILE_REC" | sed "s|https://github.com/$repository/blob/master/||")
+        elif echo "$STEERING_FILE_REC" | grep -q "gitlab"; then
+            repository=$(echo "$STEERING_FILE_REC" | sed -n 's|https://gitlab.com/\([^/]\+/[^/]\+\).*|\1|p')
+            echo "Steering file found in the repository: $repository"
+            set +e
+            git clone "https://gitlab.com/$repository.git" --depth 1
+            set -e
+            file_path=$(basename $repository)/$(echo "$STEERING_FILE_REC" | sed "s|https://gitlab.com/$repository/blob/master/||")
+        else
+            echo "Unknown repository type"
+        fi
+
+        ln -s $file_path steering_file_rec.xml 
+
+prepare-datamodels:
+    <<: *template-datamodels-job
+    stage: setup
+    script: |
+        mkdir -p $WORKAREA
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        git clone https://github.com/AIDASoft/podio.git
+        git clone https://github.com/key4hep/EDM4hep.git
+        git clone https://github.com/key4hep/key4hep-reco-validation.git
+
+
+generate-edm-samples:
+    <<: *template-datamodels-job
+    stage: generate-edm-sample
+    when: always
+    rules:
+        - if: '$VALIDATION_JOB_TYPE == "datamodels" && $MAKE_REFERENCE_SAMPLE == "yes"'
+          changes:
+            - never
+    script: |
+        mkdir -p $WORKAREA
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        cd EDM4hep
+        edm4hep_tags=($(git tag -l | grep -vE "v00-0[0-6]"))
+        cd ..
+
+        cd podio
+        # Keep only tags above v00-16, where the Frame was introduced
+        podio_tags=($(git tag -l | grep -vE "v00-0" | grep -vE "v00-1[0-5]"))
+        cd ..
+
+        podio_dates=()
+        for tag in $podio_tags; do
+            date_podio=$(cd podio && git show --format="%ai" $tag | head -n 1)
+            podio_dates+=("$date_podio")
+        done
+
+        edm4hep_dates=()
+        for tag in ${edm4hep_tags[@]}; do
+            date_edm4hep=$(cd EDM4hep && git show --format="%ai" $tag | head -n 1)
+            edm4hep_dates+=("$date_edm4hep")
+        done
+
+        echo ${edm4hep_tags[@]}
+        echo ${podio_tags[@]}
+
+        export podio_DIR=$(pwd)/podio/install
+        export EDM4HEP_DIR=$(pwd)/EDM4hep/install
+        export LD_LIBRARY_PATH=$podio_DIR/lib:$podio_DIR/lib64:$EDM4HEP_DIR/lib:$EDM4HEP_DIR/lib64:$ROOTSYS/lib/root:$LD_LIBRARY_PATH
+        export ROOT_INCLUDE_PATH=$EDM4HEP_DIR/include:$podio_DIR/include:$ROOT_INCLUDE_PATH
+
+        i=0
+        j=0
+        while [[ $i -lt ${#podio_tags[@]} && $j -lt ${#edm4hep_tags[@]} ]]; do
+            echo "tags: ${podio_tags[$i]} ${edm4hep_tags[$j]}"
+
+            cd podio
+            git reset --hard HEAD
+            git clean -fdx
+            git checkout ${podio_tags[i]}
+            mkdir -p build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX=../install -DPODIO_USE_CLANG_FORMAT=OFF
+            cmake --build . -j $(nproc) -t install
+            cd ..
+            cd ..
+
+            cd EDM4hep
+            git reset --hard HEAD
+            git clean -fdx
+            git checkout ${edm4hep_tags[j]}
+            mkdir -p build
+            cd build
+            cmake .. -DCMAKE_INSTALL_PREFIX=../install
+            cmake --build . -j $(nproc) -t install
+            cd ..
+            cd ..
+
+            python key4hep-reco-validation/datamodels/make_read_and_write.py
+            g++ -I$podio_DIR/include -I$EDM4HEP_DIR/../edm4hep -I$ROOTSYS/include/root -L$podio_DIR/lib -L$podio_DIR/lib64 -L$EDM4HEP_DIR/lib -L$EDM4HEP_DIR/lib64 -L$ROOTSYS/lib/root -ledm4hep -lpodioRootIO -lpodio -lCore --std=gnu++17 -Wno-unused-parameter -Wno-unused-variable -Wpedantic -Wextra -Wall -fPIC write.cpp -o write_frame_edm4hep
+            ./write_frame_edm4hep
+            mv test.root frame-${podio_tags[i]}-${edm4hep_tags[j]}.root
+
+            if [[ $i -eq $(( ${#podio_tags[@]} - 1 )) ]]; then
+                (( j += 1 ))
+                continue
+            fi
+
+            if [[ $j -eq $(( ${#edm4hep_tags[@]} - 1 )) ]]; then
+                (( i += 1 ))
+                continue
+            fi
+
+            echo ${edm4hep_dates[$((j+1))]}
+            echo ${podio_dates[$((i+1))]}
+            if [[ ${edm4hep_dates[$((j+1))]} < ${podio_dates[$((i+1))]} ]]; then
+                (( j += 1 ))
+                continue
+            fi
+
+            if [[ "${edm4hep_dates[$((j+1))]}" > "${podio_dates[$((i+1))]}" ]]; then
+                (( i += 1 ))
+                continue
+            fi
+
+
+        done
+
+datamodels:
+    <<: *template-datamodels-job
+    stage: datamodels
+    when: always
+    script: |
+        mkdir -p $WORKAREA
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        cd podio
+        git checkout master
+        cd ..
+        cd EDM4hep
+        git checkout master
+        cd ..
+
+        podio_DIR=$(echo "$CMAKE_PREFIX_PATH" | grep -o "/[^:]*podio[^:]*")
+        EDM4HEP_DIR=$(echo "$CMAKE_PREFIX_PATH" | grep -o "/[^:]*edm4hep/[^:]*")
+        LD_LIBRARY_PATH=$podio_DIR/lib:$podio_DIR/lib64:$EDM4HEP_DIR/lib:$EDM4HEP_DIR/lib64:$ROOTSYS/lib/root:$LD_LIBRARY_PATH
+
+        python key4hep-reco-validation/datamodels/make_read_and_write.py
+        g++ -I$podio_DIR/include -I$EDM4HEP_DIR/include -I$ROOTSYS/include/root -L$podio_DIR/lib -L$podio_DIR/lib64 -L$EDM4HEP_DIR/lib -L$EDM4HEP_DIR/lib64 -L$ROOTSYS/lib/root -ledm4hep -lpodioRootIO -lpodio -lCore --std=gnu++17 -Wno-unused-parameter -Wno-unused-variable -Wpedantic -Wextra -Wall -fPIC read.cpp -o read_frame_edm4hep
+
+        ./key4hep-reco-validation/datamodels/run_test.sh $(ls frame-*.root)
+
+simulation:
+    <<: *template-simreco-job
+    stage: simulate
+    script: |
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        job_commands=()
+        # I couldn't make it work in a single pipe since it seems curl closes it before it's completed
+        # and complains about not being able to write in the destination
+        curl $INPUT_DATA_SAMPLE/index.html > files.txt
+        ary=$(cat files.txt | head -n $(($NUMBER_OF_EVENTS / $EVENTS_PER_FILE)) )
+        ary=($ary)
+        for ((i=0; i<${#ary[@]}; i++)); do
+            echo $i
+            echo ${ary[i]}
+            curl -O $INPUT_DATA_SAMPLE/${ary[i]}
+            job_commands+=("ddsim --compactFile ${GEOMETRY}/${GEOMETRY}.xml --outputFile sim$i.slcio --steeringFile steering_file_sim.py --inputFiles ${ary[i]} --numberOfEvents $EVENTS_PER_FILE")
+        done
+        run_job() {
+            eval "$1"
+        }
+        export -f run_job
+        parallel -j $(nproc) run_job ::: "${job_commands[@]}"
+        lcio_merge_files sim.slcio sim*.slcio
+
+
+reconstruction:
+    <<: *template-simreco-job
+    stage: reconstruct
+    when: always
+    script: |
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+        
+        cd $(dirname $(readlink steering_file_rec.xml))
+        Marlin $(basename ${STEERING_FILE_REC}) --InitDD4hep.DD4hepXMLFile=${WORKAREA}/${GEOMETRY}/${GEOMETRY}.xml --global.LCIOInputFiles=${WORKAREA}/sim.slcio
+        mv Output_DST.slcio Output_REC.slcio histograms.root ${WORKAREA}
+
+make-plot-files:
+    <<: *template-simreco-job
+    stage: make-plot-files
+    when: always
+    script: |
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        # Jets
+        sed -ie 's/TightSelectedPandoraPFOs/PandoraPFOs/' CLICPerformance/Calorimetry/testCalibJetStudies.xml
+        sed -ie "s|/eos.*|$PWD/Output_DST.slcio|" CLICPerformance/Calorimetry/testCalibJetStudies.xml
+        sed -ie "s|JetStudy_WW1000_11814_CLIC_o3_v14_CT_PandoraPFOs_testnew.root|jet_study.root|" CLICPerformance/Calorimetry/testCalibJetStudies.xml
+        Marlin CLICPerformance/Calorimetry/testCalibJetStudies.xml
+
+        # Track validation
+        cat << EOF > trackvalidation/cfg/run_script_analysis.json
+        {
+        "Release date" : "2020-02-07",
+        "Input folder" : "$PWD/",
+        "Output folder": "./",
+
+        "Ntuple types" : ["ttbar3TeV"],
+        "Ntuple names" : ["histograms.root"],
+        "Histo names"  : ["track_validation_hist.root"],
+        "Test Mode": 1
+        }
+        EOF
+
+        cd trackvalidation/run_analysis
+        python3 script_analysis.py ../cfg/run_script_analysis.json
+        mv track_validation_hist.root ../../
+        cd -
+
+metadata:
+    <<: *template-simreco-job
+    stage: metadata
+    when: always
+    script: |
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        cd key4hep-reco-validation/web/python
+        echo "key4hep-spack: $(cat $rel/.key4hep-spack-commit)" > metadata.yaml
+        echo "spack: $(cat $rel/.spack-commit)" >> metadata.yaml
+        echo "nightly: $rel" >> metadata.yaml
+
+plots:
+    <<: *template-simreco-job
+    stage: plot
+    when: always
+    rules:
+     - if: '$VALIDATION_JOB_TYPE == "simreco" && $MAKE_REFERENCE_SAMPLE == "no"'
+       changes:
+           - never
+    script: |
+        mkdir -p ~/.config/matplotlib
+        cp matplotlibrc ~/.config/matplotlib
+        cd $WORKAREA
+        rel=$(find -L /cvmfs/sw-nightlies.hsf.org/key4hep/releases/$TAG -maxdepth 2 -wholename "*$OS*/.spack-commit" | sort -r | head -1)
+        rel=$(dirname $rel)
+        echo rel is $rel
+        source $(ls -t1 $rel/key4hep-stack/*/setup.sh | head -1)
+
+        mkdir -p Reference-samples
+        cd Reference-samples
+        for f in $(curl $REFERENCE_SAMPLE/index.html); do
+            curl -O $REFERENCE_SAMPLE/$f
+        done
+        cd ..
+
+        python key4hep-reco-validation/scripts/plot_runner.py jets hists --reference Reference-samples --output key4hep-reco-validation/www/${GEOMETRY}
+
+        cd key4hep-reco-validation/web/python
+        python3 make_web.py --dest ../../www
+
+
+
+execute-script:
+    <<: *template-run_script-job
+    stage: execute_script
+    when: always
+    script: |
+        mkdir -p $WORKAREA/$PLOTAREA
+        cd $WORKAREA
+        git clone -b validation_project https://github.com/enlupi/key4hep-reco-validation.git
+        cp -r key4hep-reco-validation/www/static $WORKAREA/$PLOTAREA
+            
+        CLEAN_VERSIONS=$(echo "$VERSIONS" | sed 's/[][]//g' | tr -d '"' | tr -d ' ' )
+        IFS=$',' read -r -a VERSION_ARRAY <<<"$CLEAN_VERSIONS"
+
+        for VERSION in "${VERSION_ARRAY[@]}"; do
+            GEOMETRY="${VERSION%%_*}"
+            echo "Working on Geo: $GEOMETRY - version: $VERSION"
+            if [ -d "$WORKAREA/$GEOMETRY/$VERSION" ]; then
+                echo "Working directory already exists. Deleting it..."
+                rm -rf "$WORKAREA/$GEOMETRY/$VERSION"
+                echo "Old directory deleted."
+            fi
+
+            if [ -d "$WORKAREA/$PLOTAREA/$GEOMETRY/$VERSION" ]; then
+                echo "Plotting directory already exists. Deleting it..."
+                rm -rf "$WORKAREA/$PLOTAREA/$GEOMETRY/$VERSION"
+                echo "Old directory deleted."
+            fi
+
+            mkdir -p $WORKAREA/$GEOMETRY/$VERSION
+            mkdir -p $WORKAREA/$PLOTAREA/$GEOMETRY/$VERSION
+            cd $WORKAREA/$GEOMETRY/$VERSION
+            for script in $WORKAREA/key4hep-reco-validation/scripts/FCCee/$GEOMETRY/$VERSION/*_script.sh; do
+                if [ -f "$script" ]; then
+                    echo "Sourcing $script..."
+                    source "$script"
+                fi
+            done
+        done
+
+
+        if [ $MAKE_REFERENCE_SAMPLE == "no" ]; then
+            echo "Starting website script..."
+            cd $WORKAREA/key4hep-reco-validation/web/python
+            python3 make_web.py --dest $WORKAREA/$PLOTAREA
+            echo "Script executed successfully"
+        fi
+
+
+cleanup:
+    <<: *template-simreco-job
+    stage: cleanup
+    when: always
+    rules:
+     - if: '$VALIDATION_JOB_TYPE == "simreco" && $MAKE_REFERENCE_SAMPLE == "no"'
+       changes:
+           - never
+    script: |
+        rm $WORKAREA/* -rf
+
+
+cleanup-run_script:
+    <<: *template-run_script-job
+    stage: cleanup
+    when: always
+    script: |
+        rm -rf $WORKAREA/key4hep-reco-validation
+
+        CLEAN_VERSIONS=$(echo "$VERSIONS" | sed 's/[][]//g' | tr -d '"' | tr -d ' ' )
+        IFS=$',' read -r -a VERSION_ARRAY <<<"$CLEAN_VERSIONS"
+
+        for VERSION in "${VERSION_ARRAY[@]}"; do
+            GEOMETRY="${VERSION%%_*}"
+        
+            rm $WORKAREA/$GEOMETRY/$VERSION -rf
+
+        done
+
+
+
+# -- Deploy to EOS ----------------------------
+# Use the standard workflow to publish to eos
+# see https://gitlab.cern.ch/ci-tools/ci-web-deployer
+# The variables for this particular deployment:
+# CI_OUTPUT_DIR: build/doxygen/html/
+# EOS_ACCOUNT_PASSWORD: xxx
+# EOS_ACCOUNT_USERNAME: xxx
+# EOS_PATH: /eos/project-k/key4hep/www/edm4hep/
+# METHOD: rsync
+# The service account key4hep is used to write
+# to the eos space /eos/project/k/key4hep/www/edm4hep
+# Other accounts which are part of the e-groups
+# cernbox-project-key4hep-{readers|writers} may be used.
+# The eos path and website are configured using https://webeos.cern.ch/
+deployment:
+  <<: *template-simreco-job
+  image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer
+  when: always
+  stage: deploy
+  script:
+    - deploy-eos
+  before_script: []
+  after_script: []
+
+
+deployment-run_script:
+  <<: *template-run_script-job
+  image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer
+  when: always
+  rules:
+      - if: '$VALIDATION_JOB_TYPE == "run_script" && $MAKE_REFERENCE_SAMPLE == "no"'
+        changes:
+            - never
+  stage: deploy
+  script:
+    - deploy-eos
+  before_script: []
+  after_script: []
