@@ -25,9 +25,12 @@
 # Main Purpose of the Project
 
 The main idea of this project is developing new tools for the **validation of the FCC software**. Software validation is a fundamental step in the software development lifecycle, and is needed to ensure that the final products meets the specified requirements and fulfills its intended purpose. <br>
-In the context of this work, this means making sure that, even though the code may compile and run without any issues, the physics results that we obtain from the simulations and analyses are compatible with what we expect.
+In the context of this work, this means making sure that, even though the code may compile and run without any issues, the physics results that we obtain from the simulations and analyses are compatible with what we expect. 
 
 In order to achieve these goals, we use a **GitLab CI/CD pipeline** to run daily automated tests using the new versions of the code available. The results of these tests, comparing the output of new versions with reference stable ones, can be checks on [key4hep validation website](https://key4hep-validation.web.cern.ch/index.html).
+
+Please note that this pipeline is *not* useful in case the software is broken: the verification of the software is tested by cron jobs in other repositories.
+
 
 <br>
 
@@ -175,7 +178,8 @@ For the sake of human readability, it is suggested to clearly separate the parts
 
 ## Where to Place the Code: Creating the correct *key4hep-reco-validation* Directory
 
-The bash script needs to be saved in the correct subdirectory of [*key4hep-reco-validation*](https://github.com/key4hep/key4hep-reco-validation) (the accessory scripts do not need to be placed there for the pipeline to run, but please do so in order to maintain the repository properly organised). More specifically, go to *scripts/FCCee/* and check if there already is a **directory for the geometry** or create one if needed, then create a **subdirectory for the specific version**. As mentioned in the [previous section](#execute-scripts), the naming convention is pretty strict, and the exact names of the geometry and version must be used to name the respective directories. 
+The bash script needs to be saved in the correct subdirectory of [*key4hep-reco-validation*](https://github.com/key4hep/key4hep-reco-validation) (the accessory scripts do not need to be placed there for the pipeline to run, but please do so in order to maintain the repository properly organised). As mentioned [above](#execute-scripts), this repository's structure mirrors the one for [k4geo](https://github.com/key4hep/k4geo/tree/main/FCCee), where the detector geometry lives. <br>
+More specifically, go to *scripts/FCCee/* and check if there already is a **directory for the geometry** or create one if needed, then create a **subdirectory for the specific version**. As mentioned in the [previous section](#execute-scripts), the naming convention is pretty strict, and the exact names of the geometry and version must be used to name the respective directories. 
 
 Let's use the fictitious *ALLEGRO_o4_v15* as a concrete example. The geometry directory *ALLEGRO* already exists, so you would only need to create a *ALLEGRO_o4_v15* subdirectory. Taking the example structure from the [previous section](#execute-scripts) as the base, the new structure would look like:
 ```
