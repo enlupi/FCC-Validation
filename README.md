@@ -49,7 +49,9 @@ Here is the list of the variables used in this specific pipeline:
 6. **REFERENCE_SAMPLE**: Where to find the reference sample on the runner (path relative to *WORKAREA*).
 7. **NUMBER_OF_EVENTS**: How many events to run in the simulation step.
 8. **TAG**: Which tag to use for the key4hep release
-9. **CI_OUTPUT_DIR**: Path to the web page files, needed for the website deployment.
+9. **COMPARISON_TEST**: Which statistical test to implement to compare histograms (exact match, Chi squared or Kolmogorov-Smirnov)
+10. **SIGNIFICANCE_LEVEL**: Significance level of the comparison test (between 0 and 1)
+11. **CI_OUTPUT_DIR**: Path to the web page files, needed for the website deployment.
 
 ## Pipeline Stages
 
@@ -80,16 +82,15 @@ key4hep-reco-validation/
         |   ├── CLD_o2_v06/
         |   |   └── CLD_o2_v06_script.sh
         |   └── CLD_o3_v01/
-        |       ├── CLD_o3_v01_script.sh
-        |       └── ARC_standalone_script.sh
+        |       └── CLD_o3_v01_script.sh
         └── utils/
 ``` 
 
 For each of the detector versions specified in the *VERSIONS* list, the *GEOMETRY* is defined by extracting the substring before the first underscore character.
-For each geometry-version pair thus found, the bash scripts contained in the *key4hep-reco-validation/scripts/FCCee/GEOMETRY/VERSION* directory are executed. To be recognised as such, their file name must end in *_script.sh*. <br>
-For example, using the example *key4hep-reco-validation* shown above, if the *VERSIONS* list contains *CLD_o3_v01* both *CLD_o3_v01_script.sh* and *ARC_standalone_script.sh* will be run.
+For each geometry-version pair thus found, the bash script should be contained in the *key4hep-reco-validation/scripts/FCCee/GEOMETRY/VERSION* directory and called *VERSION_script.sh*. <br>
+For example, using the example *key4hep-reco-validation* shown above, if the *VERSIONS* list contains *CLD_o3_v01* then *CLD_o3_v01_script.sh* in *key4hep-reco-validation/scripts/FCCee/CLD/CLD_o3_v01* will be run.
 
-These scripts are not properly part of the pipeline and should be submitted by the users, but ideally they should include a simulation (and optionally reconstruction) steps, followed by the desired analyses and checks. Their output must be a ROOT file containing the histograms of the variable of interest. This ROOT file must also follow a strict structure, where each TH1 object is stored inside a TDirectory whose name reflects the subsystem that is currently being analyzed. <br>
+These scripts are not properly part of the pipeline and should be submitted by the users, but ideally they should include a simulation (and optionally reconstruction) steps, followed by the desired analyses and checks. Their output must be a ROOT file containing the histograms of the variable of interest. This ROOT file must also follow a strict structure, where each TH1 object is stored inside a TDirectory whose name reflects the subsystem that is currently being analyzed, and be named *results.root* <br>
 See [this section](#analysis-and-root-file-structure) for further comments on how to properly create these scripts and what structure to follow.
 
 Finally, at the end of this stage the output ROOT files are saved in the correct reference folders if the *MAKE_REFERENCE_SAMPLE* variable is set to "yes".
@@ -148,7 +149,8 @@ source $FCCCONFIG/share/FCC-config/FullSim/ALLEGRO/ALLEGRO_o1_v03/ctest_sim_digi
 
 ### Analysis and ROOT File Structure
 
-Afterwards, it is time to analyze the output of the previous step and produce the histograms. This is more easily done with a separate script called from within the original bash script. <br> 
+Afterwards, it is time to analyze the output of the previous step and produce the output ROOT file containing the histograms. This is more easily done with a separate script called from within the original bash script. <br>
+The ROOT file **must be called *results.root*** and stored in the *$WORKAREA/$GEOMETRY/$VERSION* (which is the directory where the bash script is called).
 The histograms should be saved as TH1 objects in **specific TDirectories corresponding to the subsystems** of the detector under study. This structure assures that the plotting script can save the plots in the correct directories and, in turn, that the website is displayed correctly. 
 
 Let's look at the [IDEA_make_TH1.py file](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/IDEA/IDEA_o1_v03/IDEA_make_TH1.py) for a concrete example. At the start of the script, there is a [clear section for each subsystem](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/IDEA/IDEA_o1_v03/IDEA_make_TH1.py#L33-L118) where a specific TDirectory and the desired histograms are instantiated, e.g.
