@@ -137,7 +137,7 @@ Let's see them more in details.
 
 ## Bash Script
 
-The main ingredient needed is the bash script run in the [*execute_scripts* stage](#execute-scripts). Remember that the script should **be unique and be called $VERSIONS_script.sh***, so that the pipeline can recognize it as one of the scripts to execute. <br>
+The main ingredient needed is the bash script run in the [*execute_scripts* stage](#execute-scripts). Remember that the script should **be unique and be called *VERSION_script.sh***, so that the pipeline can recognize it as one of the scripts to execute. <br>
 The goal of this script is to **produce a ROOT file** with a specific structure containing histograms. The way to actually arrive to this results depends on the detector to be analyzed and should be decided by each user, though there is a general guideline that can be followed. You may look at the [script for *ALLEGRO_o1_v03*](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/ALLEGRO/ALLEGRO_o1_v03/ALLEGRO_o1_v03_script.sh) as an example.
 
 ### Simulation and Reconstruction
