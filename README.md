@@ -36,10 +36,15 @@ Please note that this pipeline is *not* useful in case the software is broken: t
 
 # How Does the Pipeline Work?
 
+Pipelines are the top-level component of continuous integration, delivery, and deployment implemented inside GitLab projects.
+They are compromised of jobs, which define what to do and are executed by runners. Jobs are organised into [stages](#pipeline-stages), which define when to run each job. The GitLab pipeline scheduler allows the user to automatically trigger the pipeline at specific times and to define custom [environmental variables](#pipeline-variables) to further specify the behaviour of each schedule.
+
+The pipeline is defined in the [Key4hep-validation](https://gitlab.cern.ch/key4hep/k4-validation) GitLab repository and is executed using the k4test3 CERN machine as a runner. It
+behaves according to the following general schema. Each of the detectors to be studied is simulated and the output is optionally reconstructed. These results are used to produce histograms of physical variables of interest, which are later compared via statistical tests to reference distributions. Plots showing both the current and reference distributions are created and finally uploaded on the validation website.
+
 ## Pipeline Variables
 
-The pipeline acts as a long bash script, whose behaviour can be controlled through specific **pipeline variables**. These variables are defined at the [beginnig of the pipeline](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L1-49), and can be set to the desired values when instantiating a new pipeline via the *Pipeline Schedule Editor*. <br>
-Here is the list of the variables used in this specific pipeline:
+The pipeline environmental variables are defined at the [beginnig of the pipeline](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L1-49). Each one has a default value, and can be set to the desired value when instantiating a new pipeline via the *pipeline schedule editor*. The list of customisable variables is the following: 
 
 1. **VALIDATION_JOB_TYPE**: Which type of validation job to run. In order to use the new version of the pipeline, please select *run_script*.
 2. **VERSIONS**: List of detector versions that need to tested, separated by a comma (e.g. "ALLEGRO_o1_v03, IDEA_o1_v03, CLD_o3_v01").
@@ -51,16 +56,17 @@ Here is the list of the variables used in this specific pipeline:
 8. **TAG**: Which tag to use for the key4hep release
 9. **COMPARISON_TEST**: Which statistical test to implement to compare histograms (exact match, Chi squared or Kolmogorov-Smirnov)
 10. **SIGNIFICANCE_LEVEL**: Significance level of the comparison test (between 0 and 1)
-11. **CI_OUTPUT_DIR**: Path to the web page files, needed for the website deployment.
+11. **EMAIL_ADDRESS**: Email address to notify for errors in the pipeline, or lack thereof
+12. **KEY4HEP_RECO_VALIDATION_REPO**: Web URL of the key4hep-reco-validation repository to clone, useful for debugging and to test new branches
+13. **CI_OUTPUT_DIR**: Path to the web page files, needed for the website deployment.
 
 ## Pipeline Stages
 
-The pipeline main process is divided into so-called **stages**, logically distinct steps that are run in a specified order. Stages can contain multiple **jobs** that are run concurrently, though in this pipeline each stage only has one specific job assigned to it.
-The execution of the stages can depend on the global pipeline variables set at the start or on the success of the previous stages, providing a very flexible way to handle different situations.
+Generally, multiple jobs can be executed in parallel inside each stage. In this specific pipeline, though, only one job is executed per stage. The list of the stages executed when *VALIDATION_JOB_TYPE* is set to *run_script* is the following.
 
 ### [Setup](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L84-117)
 
-The first stage of the pipeline is tasked with cleaning up the working directory of any trace of previous iterations of the pipeline for the detector versons to be tested, and/or create the necessary directories if they are not present yet. It also clones the [key4hep-reco-validation](https://github.com/key4hep/key4hep-reco-validation) containing the scripts that will be executed in the next stage.
+The first stage of the pipeline is tasked with cloning the [key4hep-reco-validation](https://github.com/key4hep/key4hep-reco-validation), containing the scripts that will be executed in the next stages. It also cleans up the working directory of any trace of previous iterations of the pipeline for the detector versions to be tested, and/or create the necessary directories if they are not present yet. Finally, it does a quick check to test if the detector versions included in the *VERSIONS* variable do exist, otherwise it will discard them and mark the pipeline as failed (its execution will keep going, though).
 
 ### [Execute Scripts](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L120-153)
 
@@ -90,19 +96,25 @@ For each of the detector versions specified in the *VERSIONS* list, the *GEOMETR
 For each geometry-version pair thus found, the bash script should be contained in the *key4hep-reco-validation/scripts/FCCee/GEOMETRY/VERSION* directory and called *VERSION_script.sh*. <br>
 For example, using the example *key4hep-reco-validation* shown above, if the *VERSIONS* list contains *CLD_o3_v01* then *CLD_o3_v01_script.sh* in *key4hep-reco-validation/scripts/FCCee/CLD/CLD_o3_v01* will be run.
 
-These scripts are not properly part of the pipeline and should be submitted by the users, but ideally they should include a simulation (and optionally reconstruction) steps, followed by the desired analyses and checks. Their output must be a ROOT file containing the histograms of the variable of interest. This ROOT file must also follow a strict structure, where each TH1 object is stored inside a TDirectory whose name reflects the subsystem that is currently being analyzed, and be named *results.root* <br>
+These scripts are not properly part of the pipeline and should be submitted by the users, but ideally they should include a simulation (and optionally reconstruction) steps, followed by the desired analyses and checks. Their output must be a ROOT file containing the histograms of the variable of interest. This ROOT file must named *results.root* and also follow a strict structure, where each TH1 object is stored inside a TDirectory whose name reflects the subsystem that is currently being analyzed.  <br>
 See [this section](#analysis-and-root-file-structure) for further comments on how to properly create these scripts and what structure to follow.
+
+Inside this stage another check takes place. If the execution of the script fails for some reason or if *results.root* is not found, the pipeline is marked as failed and the version is removed from the *VERSIONS* list. An automated email will be sent to *EMAIL_ADDRESS* to notify of the error. 
 
 Finally, at the end of this stage the output ROOT files are saved in the correct reference folders if the *MAKE_REFERENCE_SAMPLE* variable is set to "yes".
 
 ### [Make Plots](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L156-188)
 
-The [plotting script](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/utils/plot_histograms.py) is run on all the output ROOT files produced in the previous step. This script checks all the histograms saved inside a file and compares them to a reference file, producing plots of the two distributions with different backgrounds depending on the outcome of the comparison: white if they match, red if they do not, and yellow if the reference histogram could not be found.
+The first step of this stage is cleaning up the plotting directory for the relevant detector versions. This step is not included in the *setup* stage so that, even in the case of an error in the *execute_script* stage, the plots from the previous iteration of the pipeline will still be shown on the website.
+
+Afterwards, the [plotting script](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/utils/plot_histograms.py) is run on all the output ROOT files produced in the previous step. This script checks all the histograms saved inside a file and compares them to a reference file, producing plots of the two distributions with different backgrounds depending on the outcome of the comparison: white if they match, red if they do not, and yellow if the reference histogram could not be found.
 
 Three tests to compare the histograms are available:
-1. Check if all bins have exactly the same edges and number of entries.
+1. Exact match (check if all bins have exactly the same edges and number of entries).
 2. Chi squared test.
 3. Kolmogorov-Smironov test.
+
+If at least one of the checks fails, an automated email is sent to *EMAIL_ADDRESS* containing the geometry, the version, the list of subsystems and the corresponding variables for the detector that failed the comparison. If all tests succeed, on the other hand, an email confirming that everything is working as intended is sent.
 
 This stage is only executed if the *MAKE_REFERENCE_SAMPLE* variable is set to "no".
 
@@ -121,7 +133,7 @@ This stage is only executed if the *MAKE_REFERENCE_SAMPLE* variable is set to "n
 
 ### [Cleanup](https://gitlab.cern.ch/key4hep/k4-validation/-/blob/add_comparison/.gitlab-ci.yml?ref_type=heads#L262-275)
 
-A final cleanup is done to remove the *key4hep-reco-validation* cloned in  the *setup* stage and the metadata file with the key4hep release info created in the *make_web* step. <br>
+A final cleanup is done to remove the *key4hep-reco-validation* cloned in  the *setup* stage and the *txt* file containing information on the valid versions to test created in the *setup* and *execute_script* stages. <br>
 Note that all the other files produced by the pipeline will not be deleted until the *setup* stage in the next pipeline execution, so that they can be further inspected in case of issues.
 
 <br>
@@ -140,6 +152,12 @@ Let's see them more in details.
 The main ingredient needed is the bash script run in the [*execute_scripts* stage](#execute-scripts). Remember that the script should have a **unique name that ends with *_script.sh***, so that the pipeline can recognize it as one of the scripts to execute. <br>
 The goal of this script is to **produce a ROOT file** with a specific structure containing histograms. The way to actually arrive to this results depends on the detector to be analyzed and should be decided by each user, though there is a general guideline that can be followed. You may look at the [script for *ALLEGRO_o1_v03*](https://github.com/enlupi/key4hep-reco-validation/blob/validation_project/scripts/FCCee/ALLEGRO/ALLEGRO_o1_v03/ALLEGRO_o1_v03_script.sh) as an example.
 
+Please note that at the start of the script the following command should be included:
+```
+set -e
+```
+This enables the exit in case of errors. this way, the main pipeline script can check the error code after this script finishes running and see if there was an error or not. 
+
 ### Simulation and Reconstruction
 
 The script should contain a step to simulate and optionally reconstruct the events. This can usually be done with an appropriate script present in **FCCConfig**, see e.g. the [sim-digi-reco for *ALLEGRO_o1_v03*](https://github.com/HEP-FCC/FCC-config/blob/main/FCCee/FullSim/ALLEGRO/ALLEGRO_o1_v03/ctest_sim_digi_reco.sh), which can simply be sourced with the command:
@@ -147,9 +165,9 @@ The script should contain a step to simulate and optionally reconstruct the even
 source $FCCCONFIG/share/FCC-config/FullSim/ALLEGRO/ALLEGRO_o1_v03/ctest_sim_digi_reco.sh
 ```
 
-### Analysis and ROOT File Structure
+### Histogramming and ROOT File Structure
 
-Afterwards, it is time to analyze the output of the previous step and produce the output ROOT file containing the histograms. This is more easily done with a separate script called from within the original bash script. <br>
+Afterwards, it is time to process the output of the previous step to produce the output ROOT file containing the histograms. This is more easily done with a separate script called from within the original bash script. Please keep the complexity of this script to a minimum: it should contain only the logic necessary to fill in the desired histograms, but the rest of the analysis should be run in the previous step. <br>
 The ROOT file **must be called *results.root*** and stored in the *$WORKAREA/$GEOMETRY/$VERSION* (which is the directory where the bash script is called).
 The histograms should be saved as TH1 objects in **specific TDirectories corresponding to the subsystems** of the detector under study. This structure assures that the plotting script can save the plots in the correct directories and, in turn, that the website is displayed correctly. 
 
