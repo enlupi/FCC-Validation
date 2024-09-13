@@ -1,0 +1,14 @@
+../Steering_Files/ARC_test.py ../Detector_Description/ARC/ARC_standalone_o1_v01.xml
+
+# Particle	Energy		Should gamma be recorded?
+
+#proton		80*GeV		True
+#proton  	1*GeV		False
+#pi+     	50*GeV		True
+#pi+     	0.5*GeV 	False
+kaon+		10*GeV  	True
+#kaon+		0.6*GeV		False
+#e-		10*GeV		True
+#e-		0.7*MeV		False
+#mu+		20*GeV		True
+#mu+		200*MeV		False
